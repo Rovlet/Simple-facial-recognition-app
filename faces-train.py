@@ -1,46 +1,43 @@
-import cv2
 import os
-import numpy as np
-from PIL import Image
-import pickle
-
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-image_dir = os.path.join(BASE_DIR, "images")
-
-face_cascade = cv2.CascadeClassifier('cascades/data/haarcascade_frontalface_alt2.xml')
-recognizer = cv2.face.LBPHFaceRecognizer_create()
-
-current_id = 0
-label_ids = {}
-y_labels = []
-x_train = []
-
-for root, dirs, files in os.walk(image_dir):
-	for file in files:
-		if file.endswith("jpeg") or file.endswith("jpg"): #You can change pictures file format
-			path = os.path.join(root, file)
-			label = os.path.basename(root)
-			if not label in label_ids:
-				label_ids[label] = current_id
-				current_id += 1
-			id_ = label_ids[label]
-			y_labels.append(label) 
-			x_train.append(path) 
-			pil_image = Image.open(path).convert("L") 
-			size = (550, 550)
-			final_image = pil_image.resize(size, Image.ANTIALIAS)
-			image_array = np.array(final_image, "uint8")
-			print(image_array)
-			faces = face_cascade.detectMultiScale(image_array, scaleFactor=1.5, minNeighbors=5)
-			for (x,y,w,h) in faces:
-				roi = image_array[y:y+h, x:x+w]
-				x_train.append(roi)
-				y_labels.append(id_)
+import cv2
+import numpy
+import hashlib
 
 
+class Recognizer:
+	def __init__(self):
+		self.inputs = []
+		self.labels = []
+		self.recognizer = cv2.face.LBPHFaceRecognizer_create()
+		self.face_cascade = cv2.CascadeClassifier(
+			cv2.data.haarcascades + 'haarcascade_frontalface_alt2.xml'
+		)
+		self.image_dir = os.path.join(os.getcwd(), 'images')
 
-with open("pickles/face-labels.pickle", 'wb') as f:
-	pickle.dump(label_ids, f)
+	def uid(self, string):
+		return int(str(int(hashlib.md5(string.encode('utf-8')).hexdigest(),
+					16))[0:8])
 
-recognizer.train(x_train, np.array(y_labels))
-recognizer.save("recognizers/face-trainner.yml")
+	def make_model(self, ):
+		for name in os.listdir(self.image_dir):
+			print(name)
+			path_ = os.path.join(self.image_dir, name)
+			if not os.path.isdir(path_):
+				continue
+			for photo in os.listdir(path_):
+				image = cv2.imread(os.path.join(path_, photo), cv2.IMREAD_COLOR)
+				gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+				face_rects = self.face_cascade.detectMultiScale(gray, 1.5, 5)
+
+				for (x, y, w, h) in face_rects:
+					face = gray[y: y + h, x: x + w]
+
+				self.inputs.append(cv2.resize(face, (550, 550)))
+				self.labels.append(self.uid(name))
+		self.recognizer.train(self.inputs, numpy.array(self.labels))
+		self.recognizer.save("recognizers/LBPH.yml")
+
+
+if __name__ == '__main__':
+	train = Recognizer()
+	train.make_model()
